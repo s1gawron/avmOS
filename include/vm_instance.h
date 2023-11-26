@@ -12,10 +12,12 @@
 
 typedef struct VMInstance {
   // We have 10 registers that programmer is allowed to use R1...R10
+  // Stack pointer is R10
   uint32_t r[12];
   uint32_t *sp;
 
   // Instruction pointer is not accessible for programmer
+  // Ip is R11
   uint32_t *_ip;
 
   // 2 bit flag registers - carry flag and zero flag
