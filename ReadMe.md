@@ -15,7 +15,7 @@ The requirements for this project are either in this repository [Scotts_Original
 Compile:
 
 ``
-make
+make avmOS
 ``
 
 Run:
