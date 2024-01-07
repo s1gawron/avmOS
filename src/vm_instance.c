@@ -1,4 +1,5 @@
 #include "vm_instance.h"
+#include <stdlib.h>
 
 void initVM(VMInstance *vm, int physicalMemBytes) {
   vm->sp = &vm->r[STACK_POINTER];

@@ -13,17 +13,16 @@ int main(int argc, char *argv[]) {
     return INVALID_RUN_COMMAND_ERROR;
   }
 
-  if (argv[1][0] == '-' || argv[1][0] == '0') {
-    printf(
-        "# of bytes for a system memory cannot be less than or equal to 0!\n");
+  if (argv[1][0] == '-') {
+    printf("# of bytes for a system memory cannot be less than 0!\n");
     return INVALID_MEMORY_AMOUNT_ERROR;
   }
 
   int virutalMemBytes = atoi(argv[1]);
 
   if (virutalMemBytes == 0) {
-    printf("Usage: avmOS <# of bytes> <program1.txt> <program2.txt> ...\n");
-    return INVALID_RUN_COMMAND_ERROR;
+    printf("# of bytes for a system memory cannot be equal to 0!\n");
+    return INVALID_MEMORY_AMOUNT_ERROR;
   }
 
   VMInstance *pVm = malloc(sizeof(VMInstance));

@@ -1,12 +1,12 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c11
-SRCDIR = src
+SRCS = src/main.c src/vm_instance.c
 BINDIR = bin
-INCLUDEFLAG = -I include
+INCLUDEFLAG = -I ./include
 
 avmOS: 
 	mkdir -p $(BINDIR)
-	$(CC) $(CFLAGS) $(INCLUDEFLAG) $(SRCDIR)/main.c -o $(BINDIR)/avmOS
+	$(CC) $(CFLAGS) $(INCLUDEFLAG) $(SRCS) -o $(BINDIR)/avmOS
 
 clean:
 	rm -rf $(BINDIR)
