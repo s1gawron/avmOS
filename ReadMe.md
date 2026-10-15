@@ -11,14 +11,17 @@ The requirements for this project are either in this repository [Scotts_Original
 
 ### How to run this project?
 
-Compile:
+Requires JDK 25 and Maven.
 
-``
-make all
-``
+Build (compiles, runs the tests and produces `target/avmOS.jar`):
+
+```
+mvn package
+```
 
 Run:
 
-``
-./bin/avmOS 1024 prog1.txt prog2.txt
-``
+```
+java -jar target/avmOS.jar <memory bytes> <program1.txt> <program2.txt> ...
+java -jar target/avmOS.jar 1024 src/main/resources/sample_programs/scott01.txt
+```

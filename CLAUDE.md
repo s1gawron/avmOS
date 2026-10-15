@@ -10,12 +10,10 @@ avmOS is a "virtual operating system" for an abstract 32-bit machine, inspired b
 
 ## Build / run
 
-Early stage: `src/main/java` does not exist yet, and there are no tests or linters.
-
-- Compile: `mvn compile`; package: `mvn package`
-- Intended CLI (per spec): `avmOS <memory bytes> <program1.txt> <program2.txt> ...`
-
-`ReadMe.md` still says `make all` / `./bin/avmOS ...`. That text comes from the C/C++ origins of the assignment, and there is no Makefile.
+- Build and test: `mvn package` (JUnit 5) produces `target/avmOS.jar`
+- Single test: `mvn test -Dtest=BootConfigTest`
+- Run: `java -jar target/avmOS.jar <memory bytes> <program1.txt> <program2.txt> ...`
+- Entry point: `avmos.Main`. CLI arguments are parsed into the `avmos.BootConfig` record.
 
 ## Spec essentials
 
