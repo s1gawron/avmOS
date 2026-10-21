@@ -13,6 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class KernelTest {
 
+    private static final int MEMORY = 16384;
+
     private final FakeConsole console = new FakeConsole();
 
     private static Program program(String name, String... lines) {
@@ -24,10 +26,13 @@ class KernelTest {
         new Kernel(config, console).run(List.of(programs));
     }
 
+    private void run(Program... programs) {
+        run(MEMORY, 0, programs);
+    }
+
     @Test
     void runsProgramsOneAfterAnotherWithTheirOwnIds() {
-        run(256, 0,
-                program("a", "6 r1, $1", "11 r1", "27"),
+        run(program("a", "6 r1, $1", "11 r1", "27"),
                 program("b", "6 r1, $2", "11 r1", "27"));
 
         assertEquals(List.of(
@@ -38,9 +43,31 @@ class KernelTest {
     }
 
     @Test
-    void eachProgramStartsWithFreshRegistersAndMemory() {
-        run(256, 0,
-                program("a", "6 r1, $9", "27"),
+    void aNewProcessStartsWithTheRegistersOfTheSpec() {
+        // 3 printr + exit = 16 bytes of code: data starts at 16, the stack ends at 16 + 4096 + 4096
+        run(program("a", "11 r8", "11 r9", "11 r10", "27"),
+                program("b", "11 r8", "27"));
+
+        assertEquals(List.of(
+                "[p1] r8 = 1",
+                "[p1] r9 = 16",
+                "[p1] r10 = 8208",
+                "[p1] exited after 4 clock cycles",
+                "[p2] r8 = 2",
+                "[p2] exited after 2 clock cycles"), console.lines());
+    }
+
+    @Test
+    void theGlobalDataStartsZeroedAndEachProgramHasItsOwnMemory() {
+        run(program("a", "6 r1, $9", "9 r9, r1", "27"),
+                program("b", "12 r9", "27"));
+
+        assertEquals("[p2] [6] = 0", console.lines().get(1)); // p2 has 6 bytes of code, so data starts at 6
+    }
+
+    @Test
+    void eachProgramStartsWithFreshRegisters() {
+        run(program("a", "6 r1, $9", "27"),
                 program("b", "11 r1", "27"));
 
         assertEquals("[p2] r1 = 0", console.lines().get(1));
@@ -48,31 +75,43 @@ class KernelTest {
 
     @Test
     void aFaultPrintsTheRegistersAndTerminatesTheProgram() {
-        run(256, 0,
-                program("runs off the end", "6 r1, $1"),
+        run(program("runs off the end", "6 r1, $1"),
                 program("next", "27"));
 
         assertEquals(List.of(
                 "[p1] fault at eip=0x0009: unknown opcode 0",
-                "[p1] r1=1 r2=0 r3=0 r4=0 r5=0 r6=0 r7=0 r8=0 r9=0 r10=0 eip=0x0009 sf=0 zf=0",
+                "[p1] r1=1 r2=0 r3=0 r4=0 r5=0 r6=0 r7=0 r8=1 r9=9 r10=8201 eip=0x0009 sf=0 zf=0",
                 "[p1] terminated after 1 clock cycles",
                 "[p2] exited after 1 clock cycles"), console.lines());
     }
 
     @Test
-    void aProgramBiggerThanMemoryIsNotLoaded() {
-        run(8, 0,
+    void aSegmentationFaultDoesNotStopTheNextProgram() {
+        run(program("bad", "6 r1, $-1", "8 r2, r1"),
+                program("good", "6 r1, $5", "11 r1", "27"));
+
+        assertEquals(List.of(
+                "[p1] fault at eip=0x0009: invalid memory access at address -1",
+                "[p1] r1=-1 r2=0 r3=0 r4=0 r5=0 r6=0 r7=0 r8=1 r9=18 r10=8210 eip=0x0009 sf=0 zf=0",
+                "[p1] terminated after 1 clock cycles",
+                "[p2] r1 = 5",
+                "[p2] exited after 3 clock cycles"), console.lines());
+    }
+
+    @Test
+    void aProgramNeedsRoomForItsCodeItsDataAndItsStack() {
+        run(8200, 0,
                 program("big", "6 r1, $1"),
                 program("small", "27"));
 
         assertEquals(List.of(
-                "avmOS: big does not fit in memory (9 bytes of code, 8 bytes of memory)",
+                "avmOS: big does not fit in memory (needs 8201 bytes: 9 code + 4096 data + 4096 stack; memory is 8200 bytes)",
                 "[p2] exited after 1 clock cycles"), console.lines());
     }
 
     @Test
     void stopsTheWholeRunWhenTheCycleLimitIsReached() {
-        run(256, 3,
+        run(MEMORY, 3,
                 program("a", "1 r1", "1 r1", "1 r1", "1 r1", "27"),
                 program("b", "27"));
 
@@ -81,7 +120,7 @@ class KernelTest {
 
     @Test
     void theCycleLimitCountsAllProgramsOnTheSameClock() {
-        run(256, 3,
+        run(MEMORY, 3,
                 program("a", "1 r1", "27"),
                 program("b", "1 r1", "27"));
 
@@ -94,7 +133,7 @@ class KernelTest {
     void inputIsReadFromTheConsole() {
         console.withInput(21);
 
-        run(256, 0, program("echo", "32 r1", "11 r1", "27"));
+        run(program("echo", "32 r1", "11 r1", "27"));
 
         assertEquals(List.of(
                 "[p1] input r1: 21",

@@ -1,0 +1,4 @@
+7	r1, r10		;r1 = top of the stack (the first address after the stack)
+6	r2, $7		;r2 = 7
+9	r1, r2		;[r1] = 7 -> writes outside the address space: segmentation fault
+27			;exit (never reached)

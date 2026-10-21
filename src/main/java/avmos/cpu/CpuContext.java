@@ -2,26 +2,34 @@ package avmos.cpu;
 
 import avmos.Fault;
 import avmos.asm.Operand;
+import avmos.memory.AddressSpace;
 
 /**
- * Everything the CPU needs to resume a program: the registers, the instruction pointer and the
- * two flags. Later each process control block owns one, and a context switch only changes which
- * context the CPU works on.
+ * Everything the CPU needs to resume a program: the registers, the instruction pointer, the
+ * two flags and the address space. The address space is part of the context the way the page
+ * table register is on a real CPU: switching to another process switches the view of memory
+ * together with the registers. Later each process control block owns one context.
  */
 public final class CpuContext {
 
     private final int pid;
+    private final AddressSpace memory;
     private final int[] registers = new int[Operand.MAX_REGISTER + 1]; // index 0 is not used
     private int eip;
     private boolean sf;
     private boolean zf;
 
-    public CpuContext(int pid) {
+    public CpuContext(int pid, AddressSpace memory) {
         this.pid = pid;
+        this.memory = memory;
     }
 
     public int pid() {
         return pid;
+    }
+
+    public AddressSpace memory() {
+        return memory;
     }
 
     public int get(int register) {

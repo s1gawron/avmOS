@@ -3,19 +3,18 @@ package avmos.cpu;
 import avmos.Fault;
 import avmos.asm.Opcode;
 import avmos.io.Console;
-import avmos.memory.PhysicalMemory;
+import avmos.memory.AddressSpace;
 
 /**
  * The processor. It reads the program from memory as raw bytes (it never sees the
- * {@code Instruction} objects of the assembler) and executes one instruction per call.
+ * {@code Instruction} objects of the assembler) and executes one instruction per call. All
+ * memory access goes through the address space of the process that is running.
  */
 public final class Cpu {
 
-    private final PhysicalMemory memory;
     private final Console console;
 
-    public Cpu(PhysicalMemory memory, Console console) {
-        this.memory = memory;
+    public Cpu(Console console) {
         this.console = console;
     }
 
@@ -28,6 +27,7 @@ public final class Cpu {
      *               instruction, as on a real CPU.
      */
     public Trap step(CpuContext ctx) {
+        AddressSpace memory = ctx.memory();
         int start = ctx.eip();
 
         // fetch
@@ -57,14 +57,24 @@ public final class Cpu {
     }
 
     private Trap execute(CpuContext ctx, Opcode opcode, int[] operands) {
+        AddressSpace memory = ctx.memory();
         switch (opcode) {
             case INCR -> ctx.set(operands[0], ctx.get(operands[0]) + 1);
             case ADDI -> ctx.set(operands[0], ctx.get(operands[0]) + operands[1]);
             case ADDR -> ctx.set(operands[0], ctx.get(operands[0]) + ctx.get(operands[1]));
             case MOVI -> ctx.set(operands[0], operands[1]);
             case MOVR -> ctx.set(operands[0], ctx.get(operands[1]));
+            // The "m" in the names marks the operand that is a memory address held in a register.
+            case MOVMR -> ctx.set(operands[0], memory.readInt(ctx.get(operands[1])));
+            case MOVRM -> memory.writeInt(ctx.get(operands[0]), ctx.get(operands[1]));
+            case MOVMM -> memory.writeInt(ctx.get(operands[0]), memory.readInt(ctx.get(operands[1])));
             case PRINTR -> console.println(
                     "[p" + ctx.pid() + "] r" + operands[0] + " = " + ctx.get(operands[0]));
+            case PRINTM -> {
+                int address = ctx.get(operands[0]);
+                console.println("[p" + ctx.pid() + "] [" + address + "] = " + memory.readInt(address));
+            }
+            case MEMORYCLEAR -> memory.clear(ctx.get(operands[0]), ctx.get(operands[1]));
             case INPUT -> ctx.set(operands[0],
                     console.readInt("[p" + ctx.pid() + "] input r" + operands[0] + ": "));
             case SETPRIORITY -> {

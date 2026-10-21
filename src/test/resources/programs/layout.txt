@@ -1,0 +1,4 @@
+11	r8		;print r8 (the process id)
+11	r9		;print r9 (start of global data = size of the code = 16)
+11	r10		;print r10 (top of the stack = 16 + 4096 + 4096)
+27			;exit

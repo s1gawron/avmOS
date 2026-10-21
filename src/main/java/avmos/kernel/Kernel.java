@@ -2,12 +2,15 @@ package avmos.kernel;
 
 import avmos.BootConfig;
 import avmos.Fault;
+import avmos.asm.Operand;
 import avmos.asm.Program;
 import avmos.cpu.Cpu;
 import avmos.cpu.CpuContext;
 import avmos.cpu.Trap;
 import avmos.io.Console;
+import avmos.memory.FlatAddressSpace;
 import avmos.memory.PhysicalMemory;
+import avmos.memory.ProcessLayout;
 
 import java.util.List;
 
@@ -19,6 +22,7 @@ public final class Kernel {
 
     private final BootConfig config;
     private final Console console;
+    private final Cpu cpu;
 
     /** The machine clock: instructions executed so far by all programs. */
     private long clock;
@@ -26,6 +30,7 @@ public final class Kernel {
     public Kernel(BootConfig config, Console console) {
         this.config = config;
         this.console = console;
+        this.cpu = new Cpu(console);
     }
 
     public void run(List<Program> programs) {
@@ -39,18 +44,12 @@ public final class Kernel {
 
     /** @return false if the whole run must stop (the cycle limit was reached) */
     private boolean runProgram(int pid, Program program) {
-        String tag = "[p" + pid + "]";
-
-        if (program.code().length > config.memoryBytes()) {
-            console.println("avmOS: " + program.name() + " does not fit in memory ("
-                    + program.code().length + " bytes of code, " + config.memoryBytes() + " bytes of memory)");
+        CpuContext context = load(pid, program);
+        if (context == null) {
             return true;
         }
 
-        PhysicalMemory memory = new PhysicalMemory(config.memoryBytes());
-        memory.write(0, program.code());
-        CpuContext context = new CpuContext(pid);
-        Cpu cpu = new Cpu(memory, console);
+        String tag = "[p" + pid + "]";
         long cycles = 0;
 
         while (true) {
@@ -75,5 +74,31 @@ public final class Kernel {
                 return true;
             }
         }
+    }
+
+    /**
+     * The loader: builds the address space of the program (code, global data, stack) in a fresh
+     * memory and sets the registers a new process starts with.
+     *
+     * @return the new process, or {@code null} if it does not fit in memory
+     */
+    private CpuContext load(int pid, Program program) {
+        ProcessLayout layout = new ProcessLayout(program.code().length);
+        if (layout.size() > config.memoryBytes()) {
+            console.println("avmOS: " + program.name() + " does not fit in memory (needs " + layout.size()
+                    + " bytes: " + layout.codeSize() + " code + " + ProcessLayout.DATA_SIZE + " data + "
+                    + ProcessLayout.STACK_SIZE + " stack; memory is " + config.memoryBytes() + " bytes)");
+            return null;
+        }
+
+        PhysicalMemory memory = new PhysicalMemory(config.memoryBytes());
+        memory.write(0, program.code());
+
+        CpuContext context = new CpuContext(pid, new FlatAddressSpace(memory, layout.size()));
+        context.set(8, pid);
+        context.set(9, layout.dataStart());
+        context.set(Operand.SP, layout.stackTop());
+        context.setEip(0);
+        return context;
     }
 }

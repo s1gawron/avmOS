@@ -30,6 +30,11 @@ public final class PhysicalMemory {
                 | (bytes[address + 3] & 0xff) << 24;
     }
 
+    public void writeByte(int address, int value) {
+        check(address, 1);
+        bytes[address] = (byte) value;
+    }
+
     public void writeInt(int address, int value) {
         check(address, Integer.BYTES);
         bytes[address] = (byte) value;
