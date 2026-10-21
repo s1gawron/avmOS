@@ -30,6 +30,31 @@ class BootConfigTest {
     }
 
     @Test
+    void maxCyclesDefaultsToNoLimit() {
+        assertEquals(0, BootConfig.parse(new String[]{"1024", IDLE}).maxCycles());
+    }
+
+    @Test
+    void parsesMaxCyclesTogetherWithOtherOptions() {
+        BootConfig config = BootConfig.parse(new String[]{"--max-cycles", "50", "--dump", "1024", IDLE});
+
+        assertEquals(50, config.maxCycles());
+        assertTrue(config.dump());
+        assertEquals(1024, config.memoryBytes());
+    }
+
+    @Test
+    void rejectsBadMaxCycles() {
+        assertThrows(IllegalArgumentException.class, () -> BootConfig.parse(new String[]{"--max-cycles"}));
+        assertThrows(IllegalArgumentException.class,
+                () -> BootConfig.parse(new String[]{"--max-cycles", "many", "1024", IDLE}));
+        assertThrows(IllegalArgumentException.class,
+                () -> BootConfig.parse(new String[]{"--max-cycles", "-1", "1024", IDLE}));
+        assertThrows(IllegalArgumentException.class,
+                () -> BootConfig.parse(new String[]{"--max-cycles", "1024", IDLE}));
+    }
+
+    @Test
     void rejectsUnknownOption() {
         assertThrows(IllegalArgumentException.class, () -> BootConfig.parse(new String[]{"--bogus", "1024", IDLE}));
     }

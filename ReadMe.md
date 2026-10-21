@@ -26,6 +26,12 @@ java -jar target/avmOS.jar <memory bytes> <program1.txt> <program2.txt> ...
 java -jar target/avmOS.jar 1024 src/main/resources/sample_programs/scott01.txt
 ```
 
+Stop after at most N clock cycles (for programs that never exit, like `idle.txt`):
+
+```
+java -jar target/avmOS.jar --max-cycles 1000 1024 src/main/resources/sample_programs/idle.txt
+```
+
 Show the machine code of a program (offset, bytes, instruction) without running it:
 
 ```

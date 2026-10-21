@@ -12,14 +12,21 @@ avmOS is a "virtual operating system" for an abstract 32-bit machine, inspired b
 
 - Build and test: `mvn package` (JUnit 5) produces `target/avmOS.jar`
 - Single test: `mvn test -Dtest=BootConfigTest`
-- Run: `java -jar target/avmOS.jar [--dump] <memory bytes> <program1.txt> <program2.txt> ...`
+- Run: `java -jar target/avmOS.jar [--dump] [--max-cycles N] <memory bytes> <program1.txt> <program2.txt> ...`
 - `--dump` prints a hex listing (offset, bytes, instruction) of each assembled program and stops.
+- `--max-cycles N` stops the whole run when the machine clock reaches N cycles (0 = no limit). Use it with programs that never exit, such as `idle.txt`.
 - Entry point: `avmos.Main`. CLI arguments are parsed into the `avmos.BootConfig` record.
 
 ## Code layout
 
 - `avmos.asm`: `Assembler` turns program text into a `Program` (a list of `Instruction`s plus the encoded `byte[]`). `Opcode` holds all 36 opcodes with their operand signature (register or constant). `Operand` is `Register` or `Immediate`. A bad line throws `AssemblyException` with the line number.
 - Encoding: opcode byte, then each operand as a **little-endian** 32-bit int. The bytes do not tag an operand as register or constant. The opcode decides.
+- `avmos.memory`: `PhysicalMemory` is a flat little-endian `byte[]`. An access outside it throws `MemoryFault`, a subclass of `avmos.Fault` (anything that terminates a process).
+- `avmos.cpu`: `Cpu.step(CpuContext)` does fetch, decode, execute on the raw bytes in memory. eip moves to the next instruction *before* execution. If the instruction faults, eip is restored to it. `step` returns a `Trap` for requests to the OS (only `Exit` so far) or `null`. `CpuContext` holds pid, r1–r10, eip, SF and ZF. r1–r7 start at 0. Opcodes that are not implemented yet throw a `Fault`.
+- `avmos.io`: `Console` is the only I/O device. `SystemConsole` is stdout/stdin. Tests use `FakeConsole`.
+- `avmos.kernel.Kernel`: runs the programs one after another, each alone in a fresh memory, with code at address 0 and pid = position (1, 2, ...). Only completed instructions count as clock cycles (a faulting instruction does not).
+- Output format: `[pN] rX = value` (printr), `[pN] exited after C clock cycles`, and on a fault `[pN] fault at eip=0x....: reason`, a register dump and `[pN] terminated after C clock cycles`.
+- Golden tests (`GoldenOutputTest`): `src/test/resources/expected/<sample>.out` holds the exact output of a sample program. Write the expected file by tracing the program by hand, not by copying what the code printed. Output of old samples must not change when the OS changes inside.
 - `SampleProgramsTest` checks the jump offsets in the sample programs against this encoding. Use it as the reference when you change the encoding.
 
 ## Spec essentials

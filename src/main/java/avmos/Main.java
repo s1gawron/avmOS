@@ -3,6 +3,8 @@ package avmos;
 import avmos.asm.Assembler;
 import avmos.asm.AssemblyException;
 import avmos.asm.Program;
+import avmos.io.SystemConsole;
+import avmos.kernel.Kernel;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -12,7 +14,7 @@ import java.util.List;
 
 public final class Main {
 
-    private static final String USAGE = "usage: avmOS [--dump] <memory bytes> <program1.txt> <program2.txt> ...";
+    private static final String USAGE = "usage: avmOS [--dump] [--max-cycles N] <memory bytes> <program1.txt> <program2.txt> ...";
 
     private Main() {
     }
@@ -51,9 +53,6 @@ public final class Main {
             return;
         }
 
-        System.out.println("avmOS booting with " + config.memoryBytes() + " bytes of memory");
-        for (Program program : programs) {
-            System.out.println("  loaded " + program);
-        }
+        new Kernel(config, new SystemConsole()).run(programs);
     }
 }
