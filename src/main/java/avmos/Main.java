@@ -1,8 +1,18 @@
 package avmos;
 
+import avmos.asm.Assembler;
+import avmos.asm.AssemblyException;
+import avmos.asm.Program;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
 public final class Main {
 
-    private static final String USAGE = "usage: avmOS <memory bytes> <program1.txt> <program2.txt> ...";
+    private static final String USAGE = "usage: avmOS [--dump] <memory bytes> <program1.txt> <program2.txt> ...";
 
     private Main() {
     }
@@ -18,9 +28,32 @@ public final class Main {
             return;
         }
 
+        List<Program> programs = new ArrayList<>();
+        for (Path path : config.programs()) {
+            try {
+                programs.add(Assembler.assemble(path.toString(), Files.readAllLines(path)));
+            } catch (AssemblyException e) {
+                System.err.println("avmOS: " + path + ": " + e.getMessage());
+                System.exit(1);
+                return;
+            } catch (IOException e) {
+                System.err.println("avmOS: cannot read " + path + ": " + e.getMessage());
+                System.exit(1);
+                return;
+            }
+        }
+
+        if (config.dump()) {
+            for (Program program : programs) {
+                System.out.println("== " + program);
+                System.out.print(program.listing());
+            }
+            return;
+        }
+
         System.out.println("avmOS booting with " + config.memoryBytes() + " bytes of memory");
-        for (var program : config.programs()) {
-            System.out.println("  program: " + program);
+        for (Program program : programs) {
+            System.out.println("  loaded " + program);
         }
     }
 }

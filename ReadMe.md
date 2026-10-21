@@ -25,3 +25,9 @@ Run:
 java -jar target/avmOS.jar <memory bytes> <program1.txt> <program2.txt> ...
 java -jar target/avmOS.jar 1024 src/main/resources/sample_programs/scott01.txt
 ```
+
+Show the machine code of a program (offset, bytes, instruction) without running it:
+
+```
+java -jar target/avmOS.jar --dump 1024 src/main/resources/sample_programs/idle.txt
+```

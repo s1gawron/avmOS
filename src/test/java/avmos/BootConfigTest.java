@@ -6,7 +6,9 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BootConfigTest {
 
@@ -19,6 +21,23 @@ class BootConfigTest {
 
         assertEquals(1024, config.memoryBytes());
         assertEquals(List.of(Path.of(IDLE), Path.of(SCOTT01)), config.programs());
+    }
+
+    @Test
+    void dumpIsOffByDefaultAndOnWithTheOption() {
+        assertFalse(BootConfig.parse(new String[]{"1024", IDLE}).dump());
+        assertTrue(BootConfig.parse(new String[]{"--dump", "1024", IDLE}).dump());
+    }
+
+    @Test
+    void rejectsUnknownOption() {
+        assertThrows(IllegalArgumentException.class, () -> BootConfig.parse(new String[]{"--bogus", "1024", IDLE}));
+    }
+
+    @Test
+    void rejectsOptionWithoutMemoryAndPrograms() {
+        assertThrows(IllegalArgumentException.class, () -> BootConfig.parse(new String[]{"--dump"}));
+        assertThrows(IllegalArgumentException.class, () -> BootConfig.parse(new String[]{"--dump", "1024"}));
     }
 
     @Test

@@ -12,8 +12,15 @@ avmOS is a "virtual operating system" for an abstract 32-bit machine, inspired b
 
 - Build and test: `mvn package` (JUnit 5) produces `target/avmOS.jar`
 - Single test: `mvn test -Dtest=BootConfigTest`
-- Run: `java -jar target/avmOS.jar <memory bytes> <program1.txt> <program2.txt> ...`
+- Run: `java -jar target/avmOS.jar [--dump] <memory bytes> <program1.txt> <program2.txt> ...`
+- `--dump` prints a hex listing (offset, bytes, instruction) of each assembled program and stops.
 - Entry point: `avmos.Main`. CLI arguments are parsed into the `avmos.BootConfig` record.
+
+## Code layout
+
+- `avmos.asm`: `Assembler` turns program text into a `Program` (a list of `Instruction`s plus the encoded `byte[]`). `Opcode` holds all 36 opcodes with their operand signature (register or constant). `Operand` is `Register` or `Immediate`. A bad line throws `AssemblyException` with the line number.
+- Encoding: opcode byte, then each operand as a **little-endian** 32-bit int. The bytes do not tag an operand as register or constant. The opcode decides.
+- `SampleProgramsTest` checks the jump offsets in the sample programs against this encoding. Use it as the reference when you change the encoding.
 
 ## Spec essentials
 

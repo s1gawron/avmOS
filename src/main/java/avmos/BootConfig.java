@@ -7,10 +7,12 @@ import java.util.List;
 
 /**
  * What the OS needs to know at boot: how many bytes of memory the programs may use
- * (code, data, heap and stack together, not counting the OS's own structures such as PCBs)
- * and which program files to load.
+ * (code, data, heap and stack together, not counting the OS's own structures such as PCBs),
+ * which program files to load and which debug options are on.
+ *
+ * @param dump print a hex listing of each assembled program and stop
  */
-public record BootConfig(int memoryBytes, List<Path> programs) {
+public record BootConfig(int memoryBytes, List<Path> programs, boolean dump) {
 
     public BootConfig {
         if (memoryBytes <= 0) {
@@ -22,21 +24,32 @@ public record BootConfig(int memoryBytes, List<Path> programs) {
         programs = List.copyOf(programs);
     }
 
-    /** Parses {@code <memory bytes> <program1.txt> <program2.txt> ...}. */
+    /** Parses {@code [--dump] <memory bytes> <program1.txt> <program2.txt> ...}. */
     public static BootConfig parse(String[] args) {
-        if (args.length < 2) {
+        boolean dump = false;
+
+        int first = 0;
+        while (first < args.length && args[first].startsWith("--")) {
+            switch (args[first]) {
+                case "--dump" -> dump = true;
+                default -> throw new IllegalArgumentException("unknown option: " + args[first]);
+            }
+            first++;
+        }
+
+        if (args.length - first < 2) {
             throw new IllegalArgumentException("expected a memory size and at least one program file");
         }
 
         int memoryBytes;
         try {
-            memoryBytes = Integer.parseInt(args[0]);
+            memoryBytes = Integer.parseInt(args[first]);
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("memory size is not a number: " + args[0]);
+            throw new IllegalArgumentException("memory size is not a number: " + args[first]);
         }
 
         List<Path> programs = new ArrayList<>();
-        for (int i = 1; i < args.length; i++) {
+        for (int i = first + 1; i < args.length; i++) {
             Path program = Path.of(args[i]);
             if (!Files.isRegularFile(program) || !Files.isReadable(program)) {
                 throw new IllegalArgumentException("cannot read program file: " + program);
@@ -44,6 +57,6 @@ public record BootConfig(int memoryBytes, List<Path> programs) {
             programs.add(program);
         }
 
-        return new BootConfig(memoryBytes, programs);
+        return new BootConfig(memoryBytes, programs, dump);
     }
 }
