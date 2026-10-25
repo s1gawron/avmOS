@@ -11,6 +11,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -32,7 +33,7 @@ class GoldenOutputTest {
         Path source = programDirectory.resolve(name + ".txt");
         Program program = Assembler.assemble(name, Files.readAllLines(source));
         FakeConsole console = new FakeConsole();
-        BootConfig config = new BootConfig(MEMORY, List.of(source), false, maxCycles);
+        BootConfig config = new BootConfig(MEMORY, List.of(source), false, maxCycles, false);
 
         new Kernel(config, console).run(List.of(program));
 
@@ -48,6 +49,20 @@ class GoldenOutputTest {
     @Test
     void theIdleLoopRunsUntilTheCycleLimit() throws IOException {
         assertGolden(SAMPLES, "idle", 12);
+    }
+
+    @Test
+    void twoProgramsShareTheMemoryAndTheMemoryMapShowsIt() throws IOException {
+        List<Path> sources = List.of(SAMPLES.resolve("scott01.txt"), SAMPLES.resolve("scott02.txt"));
+        List<Program> programs = new ArrayList<>();
+        for (Path source : sources) {
+            programs.add(Assembler.assemble(source.getFileName().toString(), Files.readAllLines(source)));
+        }
+        FakeConsole console = new FakeConsole();
+
+        new Kernel(new BootConfig(65536, sources, false, 0, true), console).run(programs);
+
+        assertEquals(Files.readString(EXPECTED.resolve("memory-map.out")), console.output());
     }
 
     @ParameterizedTest

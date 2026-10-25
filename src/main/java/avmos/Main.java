@@ -14,7 +14,7 @@ import java.util.List;
 
 public final class Main {
 
-    private static final String USAGE = "usage: avmOS [--dump] [--max-cycles N] <memory bytes> <program1.txt> <program2.txt> ...";
+    private static final String USAGE = "usage: avmOS [--dump] [--max-cycles N] [--memory-map] <memory bytes> <program1.txt> <program2.txt> ...";
 
     private Main() {
     }

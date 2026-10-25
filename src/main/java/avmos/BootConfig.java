@@ -12,8 +12,9 @@ import java.util.List;
  *
  * @param dump      print a hex listing of each assembled program and stop
  * @param maxCycles stop the whole run after this many clock cycles (0 = no limit)
+ * @param memoryMap print where each process is loaded and how the free memory looks
  */
-public record BootConfig(int memoryBytes, List<Path> programs, boolean dump, int maxCycles) {
+public record BootConfig(int memoryBytes, List<Path> programs, boolean dump, int maxCycles, boolean memoryMap) {
 
     public BootConfig {
         if (memoryBytes <= 0) {
@@ -28,16 +29,18 @@ public record BootConfig(int memoryBytes, List<Path> programs, boolean dump, int
         programs = List.copyOf(programs);
     }
 
-    /** Parses {@code [--dump] [--max-cycles N] <memory bytes> <program1.txt> <program2.txt> ...}. */
+    /** Parses {@code [--dump] [--max-cycles N] [--memory-map] <memory bytes> <program1.txt> <program2.txt> ...}. */
     public static BootConfig parse(String[] args) {
         boolean dump = false;
         int maxCycles = 0;
+        boolean memoryMap = false;
 
         int first = 0;
         while (first < args.length && args[first].startsWith("--")) {
             String option = args[first++];
             switch (option) {
                 case "--dump" -> dump = true;
+                case "--memory-map" -> memoryMap = true;
                 case "--max-cycles" -> {
                     if (first >= args.length) {
                         throw new IllegalArgumentException("--max-cycles needs a value");
@@ -63,7 +66,7 @@ public record BootConfig(int memoryBytes, List<Path> programs, boolean dump, int
             programs.add(program);
         }
 
-        return new BootConfig(memoryBytes, programs, dump, maxCycles);
+        return new BootConfig(memoryBytes, programs, dump, maxCycles, memoryMap);
     }
 
     private static int parseNumber(String what, String text) {

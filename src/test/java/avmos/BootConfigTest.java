@@ -55,6 +55,12 @@ class BootConfigTest {
     }
 
     @Test
+    void memoryMapIsOffByDefaultAndOnWithTheOption() {
+        assertFalse(BootConfig.parse(new String[]{"1024", IDLE}).memoryMap());
+        assertTrue(BootConfig.parse(new String[]{"--memory-map", "1024", IDLE}).memoryMap());
+    }
+
+    @Test
     void rejectsUnknownOption() {
         assertThrows(IllegalArgumentException.class, () -> BootConfig.parse(new String[]{"--bogus", "1024", IDLE}));
     }

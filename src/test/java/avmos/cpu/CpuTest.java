@@ -3,7 +3,7 @@ package avmos.cpu;
 import avmos.Fault;
 import avmos.asm.Assembler;
 import avmos.io.FakeConsole;
-import avmos.memory.FlatAddressSpace;
+import avmos.memory.BaseLimitAddressSpace;
 import avmos.memory.PhysicalMemory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -23,7 +23,7 @@ class CpuTest {
     private final FakeConsole console = new FakeConsole();
     private final PhysicalMemory memory = new PhysicalMemory(256);
     private final Cpu cpu = new Cpu(console);
-    private final CpuContext ctx = new CpuContext(7, new FlatAddressSpace(memory, 256));
+    private final CpuContext ctx = new CpuContext(7, new BaseLimitAddressSpace(memory, 0, 256));
 
     private void load(String... lines) {
         memory.write(0, Assembler.assemble("test", List.of(lines)).code());
@@ -158,7 +158,7 @@ class CpuTest {
     void anInstructionCutOffByTheEndOfMemoryFaults() {
         PhysicalMemory small = new PhysicalMemory(10);
         small.write(5, new byte[]{6, 1, 0, 0, 0}); // movi r1, <4 bytes missing>
-        CpuContext smallCtx = new CpuContext(7, new FlatAddressSpace(small, 10));
+        CpuContext smallCtx = new CpuContext(7, new BaseLimitAddressSpace(small, 0, 10));
         smallCtx.setEip(5);
 
         assertThrows(Fault.class, () -> cpu.step(smallCtx));
@@ -247,7 +247,7 @@ class CpuTest {
     @Test
     void everyMemoryInstructionFaultsOnABadAddress() {
         for (String instruction : List.of("8 r2, r1", "9 r1, r2", "10 r1, r2", "10 r2, r1", "12 r1")) {
-            CpuContext bad = new CpuContext(7, new FlatAddressSpace(memory, 256));
+            CpuContext bad = new CpuContext(7, new BaseLimitAddressSpace(memory, 0, 256));
             bad.set(1, -4);
             memory.write(0, Assembler.assemble("test", List.of(instruction)).code());
 
@@ -264,6 +264,24 @@ class CpuTest {
         assertThrows(Fault.class, () -> cpu.step(ctx));
 
         assertEquals(7, memory.readInt(100));
+    }
+
+    // --- relocation ---
+
+    @Test
+    void theSameCodeWorksAtAnyPhysicalBase() {
+        PhysicalMemory ram = new PhysicalMemory(512);
+        CpuContext moved = new CpuContext(7, new BaseLimitAddressSpace(ram, 100, 200));
+        ram.write(100, Assembler.assemble("test", List.of("6 r1, $50", "6 r2, $42", "9 r1, r2", "27")).code());
+
+        for (int i = 0; i < 3; i++) {
+            assertNull(cpu.step(moved));
+        }
+
+        assertEquals(42, ram.readInt(150)); // virtual 50 is physical 100 + 50
+        assertEquals(0, ram.readInt(50));
+        assertInstanceOf(Trap.Exit.class, cpu.step(moved));
+        assertEquals(1 + 9 + 9 + 9, moved.eip()); // eip is virtual too: it counts from the start of the block
     }
 
     // --- compare and jump ---
@@ -402,7 +420,7 @@ class CpuTest {
 
     /** A process with a 14-word stack at [200, 256), where the code (at 0) cannot reach it. */
     private CpuContext contextWithSmallStack() {
-        CpuContext small = new CpuContext(7, new FlatAddressSpace(memory, 256), 200, 256);
+        CpuContext small = new CpuContext(7, new BaseLimitAddressSpace(memory, 0, 256), 200, 256);
         small.set(10, 256);
         return small;
     }
@@ -544,7 +562,7 @@ class CpuTest {
     @Test
     void popAndRetOnAnEmptyStackFaultAndChangeNothing() {
         for (String instruction : List.of("35 r1", "36 r1", "21")) {
-            CpuContext empty = new CpuContext(7, new FlatAddressSpace(memory, 256));
+            CpuContext empty = new CpuContext(7, new BaseLimitAddressSpace(memory, 0, 256));
             empty.set(10, 256);
             empty.set(1, 100);
             load(instruction);
@@ -562,7 +580,7 @@ class CpuTest {
     void anSpOutsideTheStackIsRefusedByPushPopAndRet() {
         for (int sp : new int[]{1000, -8}) {
             for (String instruction : List.of("5 $1", "4 r1", "35 r1", "36 r1", "21", "19 r1")) {
-                CpuContext bad = new CpuContext(7, new FlatAddressSpace(memory, 256));
+                CpuContext bad = new CpuContext(7, new BaseLimitAddressSpace(memory, 0, 256));
                 bad.set(10, sp);
                 load(instruction);
 
@@ -604,7 +622,7 @@ class CpuTest {
         steps(2);
         assertThrows(Fault.class, () -> cpu.step(ctx));
 
-        CpuContext negative = new CpuContext(7, new FlatAddressSpace(memory, 256));
+        CpuContext negative = new CpuContext(7, new BaseLimitAddressSpace(memory, 0, 256));
         negative.set(1, 10);
         negative.set(2, -1);
         memory.write(0, Assembler.assemble("test", List.of("33 r1, r2")).code());

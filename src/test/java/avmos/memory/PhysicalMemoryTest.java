@@ -51,6 +51,38 @@ class PhysicalMemoryTest {
     }
 
     @Test
+    void clearZeroesTheGivenRangeOnly() {
+        PhysicalMemory memory = new PhysicalMemory(8);
+        memory.write(0, new byte[]{1, 2, 3, 4, 5, 6, 7, 8});
+
+        memory.clear(2, 4);
+
+        assertEquals(2, memory.readByte(1));
+        assertEquals(0, memory.readByte(2));
+        assertEquals(0, memory.readByte(5));
+        assertEquals(7, memory.readByte(6));
+    }
+
+    @Test
+    void clearOfZeroBytesIsFineEvenAtTheEnd() {
+        PhysicalMemory memory = new PhysicalMemory(8);
+        memory.writeByte(7, 9);
+
+        memory.clear(8, 0);
+
+        assertEquals(9, memory.readByte(7));
+    }
+
+    @Test
+    void clearOutsideMemoryFaultsAndNegativeLengthIsAnError() {
+        PhysicalMemory memory = new PhysicalMemory(8);
+
+        assertThrows(MemoryFault.class, () -> memory.clear(6, 3));
+        assertThrows(MemoryFault.class, () -> memory.clear(-1, 2));
+        assertThrows(IllegalArgumentException.class, () -> memory.clear(0, -1));
+    }
+
+    @Test
     void faultsOutsideMemory() {
         PhysicalMemory memory = new PhysicalMemory(8);
 

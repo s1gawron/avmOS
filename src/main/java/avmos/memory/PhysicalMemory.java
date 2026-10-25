@@ -1,5 +1,7 @@
 package avmos.memory;
 
+import java.util.Arrays;
+
 /**
  * The machine's RAM: a flat array of bytes. Integers are stored little-endian, the same way
  * the assembler writes them.
@@ -41,6 +43,15 @@ public final class PhysicalMemory {
         bytes[address + 1] = (byte) (value >> 8);
         bytes[address + 2] = (byte) (value >> 16);
         bytes[address + 3] = (byte) (value >> 24);
+    }
+
+    /** Sets {@code length} bytes starting at {@code address} to zero. */
+    public void clear(int address, int length) {
+        if (length < 0) {
+            throw new IllegalArgumentException("length must not be negative, got " + length);
+        }
+        check(address, length);
+        Arrays.fill(bytes, address, address + length, (byte) 0);
     }
 
     public void write(int address, byte[] data) {

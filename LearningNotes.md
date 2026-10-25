@@ -64,7 +64,7 @@ A computer starts in one fixed place. The first thing it needs is to know what i
 ```
 $ avmOS
 avmOS: expected a memory size and at least one program file
-usage: avmOS [--dump] [--max-cycles N] <memory bytes> <program1.txt> <program2.txt> ...
+usage: avmOS [--dump] [--max-cycles N] [--memory-map] <memory bytes> <program1.txt> <program2.txt> ...
 ```
 
 ### In real computers
@@ -220,10 +220,10 @@ The address space is part of the CPU context. When the OS switches to another pr
 ### How avmOS shows it
 
 - `ProcessLayout` computes where the regions are.
-- `AddressSpace` is what a program sees. `FlatAddressSpace` is the first version. It checks every access.
+- `AddressSpace` is what a program sees. `FlatAddressSpace` was the first version. It checks every access. Step 7 replaced it with `BaseLimitAddressSpace`, which does the same checks.
 - `Kernel.load` builds the address space and sets the first registers.
 - Five new opcodes use memory: `movmr`, `movrm`, `movmm`, `printm` and `memoryclear`.
-- Tests: `FlatAddressSpaceTest`, and the programs `layout.txt`, `memory.txt` and `segfault.txt`.
+- Tests: `BaseLimitAddressSpaceTest` (it began as `FlatAddressSpaceTest`), and the programs `layout.txt`, `memory.txt` and `segfault.txt`.
 
 ### Try it
 
@@ -248,7 +248,7 @@ The program writes to the first address after its stack. That address is in RAM,
 
 ```
 $ avmOS 1024 $S/scott01.txt
-avmOS: src/main/resources/sample_programs/scott01.txt does not fit in memory (needs 8284 bytes: 92 code + 4096 data + 4096 stack; memory is 1024 bytes)
+avmOS: src/main/resources/sample_programs/scott01.txt does not fit in memory (needs 8284 bytes: 92 code + 4096 data + 4096 stack; free: 1024 bytes, largest block: 1024 bytes)
 ```
 
 Now read `memory.txt` and its output:

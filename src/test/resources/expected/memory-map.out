@@ -1,0 +1,12 @@
+[p1] loaded at 0..8284 (92 code + 4096 data + 4096 stack)
+[p2] loaded at 8284..16546 (70 code + 4096 data + 4096 stack)
+memory: free 16546..65536 (48990 bytes)
+[p1] r2 = 3276834
+[p1] r2 = 3276869
+[p1] exited after 12 clock cycles
+[p1] memory freed 0..8284
+memory: free 0..8284 (8284 bytes), 16546..65536 (48990 bytes)
+[p2] r4 = 99
+[p2] exited after 10 clock cycles
+[p2] memory freed 8284..16546
+memory: free 0..65536 (65536 bytes)
