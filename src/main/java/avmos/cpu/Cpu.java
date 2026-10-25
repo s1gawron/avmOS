@@ -77,6 +77,14 @@ public final class Cpu {
             case MEMORYCLEAR -> memory.clear(ctx.get(operands[0]), ctx.get(operands[1]));
             case INPUT -> ctx.set(operands[0],
                     console.readInt("[p" + ctx.pid() + "] input r" + operands[0] + ": "));
+            case CMPI -> compare(ctx, ctx.get(operands[0]), operands[1]);
+            case CMPR -> compare(ctx, ctx.get(operands[0]), ctx.get(operands[1]));
+            // The offset register is read even when the jump is not taken, so a bad register
+            // number always faults.
+            case JMP -> jump(ctx, ctx.get(operands[0]), true);
+            case JLT -> jump(ctx, ctx.get(operands[0]), ctx.sf());
+            case JGT -> jump(ctx, ctx.get(operands[0]), !ctx.sf() && !ctx.zf());
+            case JE -> jump(ctx, ctx.get(operands[0]), ctx.zf());
             case SETPRIORITY -> {
                 // The scheduler does not use priorities yet.
             }
@@ -86,5 +94,26 @@ public final class Cpu {
             default -> throw new Fault("opcode " + opcode.mnemonic() + " is not implemented yet");
         }
         return null;
+    }
+
+    /**
+     * Sets both flags from a signed comparison. Comparing is not the same as subtracting: the
+     * difference of two ints can overflow and then has the wrong sign (MIN_VALUE - 1 is
+     * positive). A real CPU has an overflow flag for this. This machine has none.
+     */
+    private static void compare(CpuContext ctx, int a, int b) {
+        int order = Integer.compare(a, b);
+        ctx.setSf(order < 0);
+        ctx.setZf(order == 0);
+    }
+
+    /**
+     * eip already points at the next instruction, so the offset is relative to it. The CPU does
+     * not check the target: a bad one shows up as a fault when the next instruction is fetched.
+     */
+    private static void jump(CpuContext ctx, int offset, boolean taken) {
+        if (taken) {
+            ctx.setEip(ctx.eip() + offset);
+        }
     }
 }

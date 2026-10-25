@@ -4,6 +4,7 @@ import avmos.BootConfig;
 import avmos.asm.Assembler;
 import avmos.asm.Program;
 import avmos.io.FakeConsole;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -27,11 +28,11 @@ class GoldenOutputTest {
     private static final Path EXPECTED = Path.of("src/test/resources/expected");
     private static final int MEMORY = 16384;
 
-    private static void assertGolden(Path programDirectory, String name) throws IOException {
+    private static void assertGolden(Path programDirectory, String name, int maxCycles) throws IOException {
         Path source = programDirectory.resolve(name + ".txt");
         Program program = Assembler.assemble(name, Files.readAllLines(source));
         FakeConsole console = new FakeConsole();
-        BootConfig config = new BootConfig(MEMORY, List.of(source), false, 0);
+        BootConfig config = new BootConfig(MEMORY, List.of(source), false, maxCycles);
 
         new Kernel(config, console).run(List.of(program));
 
@@ -39,14 +40,19 @@ class GoldenOutputTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"scott01", "scott02"})
+    @ValueSource(strings = {"scott01", "scott02", "scott05", "idle-n"})
     void sampleProgramsMatchTheExpectedFile(String name) throws IOException {
-        assertGolden(SAMPLES, name);
+        assertGolden(SAMPLES, name, 0);
+    }
+
+    @Test
+    void theIdleLoopRunsUntilTheCycleLimit() throws IOException {
+        assertGolden(SAMPLES, "idle", 12);
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"layout", "memory", "segfault"})
     void testProgramsMatchTheExpectedFile(String name) throws IOException {
-        assertGolden(TEST_PROGRAMS, name);
+        assertGolden(TEST_PROGRAMS, name, 0);
     }
 }

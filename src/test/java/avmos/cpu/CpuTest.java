@@ -6,13 +6,17 @@ import avmos.io.FakeConsole;
 import avmos.memory.FlatAddressSpace;
 import avmos.memory.PhysicalMemory;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CpuTest {
 
@@ -130,11 +134,11 @@ class CpuTest {
 
     @Test
     void anInstructionThatIsNotImplementedYetFaults() {
-        load("13 r1");
+        load("22 r1, r2"); // alloc: comes with the heap
 
         Fault fault = assertThrows(Fault.class, () -> cpu.step(ctx));
 
-        assertEquals("opcode jmp is not implemented yet", fault.getMessage());
+        assertEquals("opcode alloc is not implemented yet", fault.getMessage());
         assertEquals(0, ctx.eip()); // a fault during execution also reports the faulting instruction
     }
 
@@ -260,6 +264,133 @@ class CpuTest {
         assertThrows(Fault.class, () -> cpu.step(ctx));
 
         assertEquals(7, memory.readInt(100));
+    }
+
+    // --- compare and jump ---
+
+    private void assertFlags(boolean sf, boolean zf) {
+        assertEquals(sf, ctx.sf(), "sign flag");
+        assertEquals(zf, ctx.zf(), "zero flag");
+    }
+
+    @Test
+    void cmpiSetsTheSignFlagForLessAndTheZeroFlagForEqual() {
+        load("6 r1, $12", "14 r1, $14", "14 r1, $11", "14 r1, $12");
+
+        steps(2); // 12 against 14
+        assertFlags(true, false);
+        cpu.step(ctx); // 12 against 11
+        assertFlags(false, false);
+        cpu.step(ctx); // 12 against 12
+        assertFlags(false, true);
+    }
+
+    @Test
+    void everyCompareSetsBothFlagsSoOldResultsDoNotLinger() {
+        load("6 r1, $12", "14 r1, $12", "14 r1, $14");
+
+        steps(2); // equal
+        assertFlags(false, true);
+        cpu.step(ctx); // less: ZF must be cleared again
+        assertFlags(true, false);
+    }
+
+    @Test
+    void cmprComparesTwoRegisters() {
+        load("6 r1, $3", "6 r2, $5", "15 r1, r2", "15 r2, r1", "15 r1, r1");
+
+        steps(3);
+        assertFlags(true, false);
+        cpu.step(ctx);
+        assertFlags(false, false);
+        cpu.step(ctx);
+        assertFlags(false, true);
+    }
+
+    @Test
+    void compareIsSignedAndDoesNotOverflow() {
+        // MIN_VALUE - 1 wraps around to a positive number, but MIN_VALUE is still less than 1
+        load("6 r1, $-2147483648", "14 r1, $1", "6 r2, $2147483647", "14 r2, $-1");
+
+        steps(2);
+        assertFlags(true, false);
+        steps(2);
+        assertFlags(false, false);
+    }
+
+    @Test
+    void jmpJumpsRelativeToTheNextInstruction() {
+        load("6 r1, $5", "13 r1");
+
+        steps(2);
+
+        assertEquals(14 + 5, ctx.eip()); // jmp ends at 14
+    }
+
+    @Test
+    void jmpWithANegativeOffsetJumpsBack() {
+        load("6 r1, $-14", "13 r1");
+
+        steps(2);
+
+        assertEquals(0, ctx.eip());
+    }
+
+    @ParameterizedTest(name = "opcode {0} with r1={1} (compared with 10) jumps: {2}")
+    @CsvSource({
+            "16, 5, true", "16, 10, false", "16, 20, false",   // jlt
+            "17, 20, true", "17, 10, false", "17, 5, false",   // jgt: not when equal
+            "18, 10, true", "18, 5, false", "18, 20, false"    // je
+    })
+    void conditionalJumps(int opcode, int left, boolean taken) {
+        // 3 x 9 bytes + the 5-byte jump: the next instruction is at 32
+        load("6 r1, $" + left, "6 r2, $100", "14 r1, $10", opcode + " r2");
+
+        steps(4);
+
+        assertEquals(taken ? 32 + 100 : 32, ctx.eip());
+    }
+
+    @Test
+    void aJumpThatIsNotTakenStillChecksItsRegister() {
+        memory.write(0, new byte[]{16, 11, 0, 0, 0}); // jlt r11, with SF clear
+
+        Fault fault = assertThrows(Fault.class, () -> cpu.step(ctx));
+
+        assertEquals("invalid register r11", fault.getMessage());
+    }
+
+    @Test
+    void theCpuDoesNotCheckTheTargetOfAJumpButTheNextFetchFaults() {
+        load("6 r1, $-100", "13 r1");
+
+        steps(2);
+        assertEquals(14 - 100, ctx.eip()); // the jump itself succeeded
+
+        assertThrows(Fault.class, () -> cpu.step(ctx));
+        assertEquals(14 - 100, ctx.eip());
+    }
+
+    @Test
+    void jumpingIntoTheEmptyMemoryAfterTheCodeFaultsWithUnknownOpcode() {
+        load("6 r1, $50", "13 r1");
+
+        steps(2);
+        Fault fault = assertThrows(Fault.class, () -> cpu.step(ctx));
+
+        assertEquals("unknown opcode 0", fault.getMessage());
+    }
+
+    @Test
+    void aJumpIntoTheMiddleOfAnInstructionRunsWhateverBytesAreThere() {
+        // movi r2, $27 is 06 | 02 00 00 00 | 1b 00 00 00. Five bytes in, the constant 27
+        // looks like the opcode of exit.
+        load("6 r1, $5", "13 r1", "6 r2, $27");
+
+        steps(2);
+
+        assertEquals(14 + 5, ctx.eip());
+        assertInstanceOf(Trap.Exit.class, cpu.step(ctx));
     }
 
     @Test
