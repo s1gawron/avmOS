@@ -2,6 +2,7 @@ package avmos.cpu;
 
 import avmos.Fault;
 import avmos.asm.Opcode;
+import avmos.asm.Operand;
 import avmos.io.Console;
 import avmos.memory.AddressSpace;
 
@@ -77,6 +78,24 @@ public final class Cpu {
             case MEMORYCLEAR -> memory.clear(ctx.get(operands[0]), ctx.get(operands[1]));
             case INPUT -> ctx.set(operands[0],
                     console.readInt("[p" + ctx.pid() + "] input r" + operands[0] + ": "));
+            // An instruction that faults must leave the registers and memory as they were, so
+            // it can be run again. Each case below checks everything that can fault first and
+            // changes sp or a register last.
+            case PUSHR -> push(ctx, ctx.get(operands[0]));
+            case PUSHI -> push(ctx, operands[0]);
+            case POPR -> {
+                ctx.get(operands[0]); // rejects a bad register number before sp changes
+                int value = pop(ctx);
+                ctx.set(operands[0], value); // popr sp ends with sp = the popped value
+            }
+            case POPM -> {
+                int sp = popAddress(ctx);
+                memory.writeInt(ctx.get(operands[0]), memory.readInt(sp));
+                ctx.set(Operand.SP, sp + Integer.BYTES);
+            }
+            case CALL -> call(ctx, ctx.get(operands[0]));
+            case CALLM -> call(ctx, memory.readInt(ctx.get(operands[0])));
+            case RET -> ctx.setEip(pop(ctx));
             case CMPI -> compare(ctx, ctx.get(operands[0]), operands[1]);
             case CMPR -> compare(ctx, ctx.get(operands[0]), ctx.get(operands[1]));
             // The offset register is read even when the jump is not taken, so a bad register
@@ -94,6 +113,49 @@ public final class Cpu {
             default -> throw new Fault("opcode " + opcode.mnemonic() + " is not implemented yet");
         }
         return null;
+    }
+
+    /** The stack grows towards lower addresses: sp moves down by 4, then the value is written. */
+    private static void push(CpuContext ctx, int value) {
+        int sp = stackPointer(ctx);
+        if (sp - Integer.BYTES < ctx.stackBottom()) {
+            throw new Fault("stack overflow");
+        }
+        int newSp = sp - Integer.BYTES;
+        ctx.memory().writeInt(newSp, value);
+        ctx.set(Operand.SP, newSp);
+    }
+
+    /** Reads the top of the stack, then moves sp up by 4. */
+    private static int pop(CpuContext ctx) {
+        int sp = popAddress(ctx);
+        int value = ctx.memory().readInt(sp);
+        ctx.set(Operand.SP, sp + Integer.BYTES);
+        return value;
+    }
+
+    /** Checks that a word can be popped, and returns its address (sp). Does not change sp. */
+    private static int popAddress(CpuContext ctx) {
+        int sp = stackPointer(ctx);
+        if ((long) sp + Integer.BYTES > ctx.stackTop()) {
+            throw new Fault("stack underflow");
+        }
+        return sp;
+    }
+
+    /** sp must be inside the stack. If the program moved it somewhere else, push and pop refuse. */
+    private static int stackPointer(CpuContext ctx) {
+        int sp = ctx.get(Operand.SP);
+        if (sp < ctx.stackBottom() || sp > ctx.stackTop()) {
+            throw new Fault("invalid stack pointer " + sp);
+        }
+        return sp;
+    }
+
+    /** The return address is the next instruction: eip already points at it. */
+    private static void call(CpuContext ctx, int offset) {
+        push(ctx, ctx.eip());
+        ctx.setEip(ctx.eip() + offset);
     }
 
     /**

@@ -14,14 +14,28 @@ public final class CpuContext {
 
     private final int pid;
     private final AddressSpace memory;
+    private final int stackBottom;
+    private final int stackTop;
     private final int[] registers = new int[Operand.MAX_REGISTER + 1]; // index 0 is not used
     private int eip;
     private boolean sf;
     private boolean zf;
 
+    /** A process whose stack may use the whole address space. */
     public CpuContext(int pid, AddressSpace memory) {
+        this(pid, memory, 0, memory.size());
+    }
+
+    /**
+     * @param stackBottom lowest address of the stack region
+     * @param stackTop    first address above the stack region. Push and pop keep sp between the
+     *                    two, so the stack cannot grow into the data below it.
+     */
+    public CpuContext(int pid, AddressSpace memory, int stackBottom, int stackTop) {
         this.pid = pid;
         this.memory = memory;
+        this.stackBottom = stackBottom;
+        this.stackTop = stackTop;
     }
 
     public int pid() {
@@ -30,6 +44,14 @@ public final class CpuContext {
 
     public AddressSpace memory() {
         return memory;
+    }
+
+    public int stackBottom() {
+        return stackBottom;
+    }
+
+    public int stackTop() {
+        return stackTop;
     }
 
     public int get(int register) {

@@ -1,0 +1,2 @@
+;ret without a call: there is no return address on the stack
+21	;ret

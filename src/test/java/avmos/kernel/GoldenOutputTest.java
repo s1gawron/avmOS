@@ -40,7 +40,7 @@ class GoldenOutputTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"scott01", "scott02", "scott05", "idle-n"})
+    @ValueSource(strings = {"scott01", "scott02", "scott03", "scott04", "scott05", "scott06", "idle-n"})
     void sampleProgramsMatchTheExpectedFile(String name) throws IOException {
         assertGolden(SAMPLES, name, 0);
     }
@@ -51,7 +51,7 @@ class GoldenOutputTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"layout", "memory", "segfault"})
+    @ValueSource(strings = {"layout", "memory", "segfault", "recursion", "overflow", "underflow"})
     void testProgramsMatchTheExpectedFile(String name) throws IOException {
         assertGolden(TEST_PROGRAMS, name, 0);
     }

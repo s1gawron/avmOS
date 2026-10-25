@@ -393,6 +393,211 @@ class CpuTest {
         assertInstanceOf(Trap.Exit.class, cpu.step(ctx));
     }
 
+    // --- stack and procedures ---
+
+    /** An empty stack: sp starts at the top of the 256-byte address space. */
+    private void emptyStack() {
+        ctx.set(10, 256);
+    }
+
+    /** A process with a 14-word stack at [200, 256), where the code (at 0) cannot reach it. */
+    private CpuContext contextWithSmallStack() {
+        CpuContext small = new CpuContext(7, new FlatAddressSpace(memory, 256), 200, 256);
+        small.set(10, 256);
+        return small;
+    }
+
+    @Test
+    void pushStoresTheValueBelowSpAndLowersSp() {
+        emptyStack();
+        load("6 r1, $77", "4 r1");
+
+        steps(2);
+
+        assertEquals(252, ctx.get(10));
+        assertEquals(77, memory.readInt(252));
+    }
+
+    @Test
+    void pushiPushesAConstant() {
+        emptyStack();
+        load("5 $-9");
+
+        steps(1);
+
+        assertEquals(252, ctx.get(10));
+        assertEquals(-9, memory.readInt(252));
+    }
+
+    @Test
+    void popReturnsTheValuesInReverseOrderAndRaisesSp() {
+        emptyStack();
+        load("5 $1", "5 $2", "5 $3", "35 r1", "35 r2", "35 r3");
+
+        steps(6);
+
+        assertEquals(3, ctx.get(1));
+        assertEquals(2, ctx.get(2));
+        assertEquals(1, ctx.get(3));
+        assertEquals(256, ctx.get(10)); // a pop raises sp, the spec text says "decremented"
+    }
+
+    @Test
+    void pushrSpPushesTheValueSpHadBeforeThePush() {
+        emptyStack();
+        load("4 r10");
+
+        steps(1);
+
+        assertEquals(252, ctx.get(10));
+        assertEquals(256, memory.readInt(252));
+    }
+
+    @Test
+    void poprSpEndsWithTheValueThatWasPopped() {
+        emptyStack();
+        load("5 $100", "35 r10");
+
+        steps(2);
+
+        assertEquals(100, ctx.get(10));
+    }
+
+    @Test
+    void popmStoresTheValueInTheMemoryAtTheAddressInTheRegister() {
+        emptyStack();
+        load("5 $42", "6 r1, $100", "36 r1");
+
+        steps(3);
+
+        assertEquals(42, memory.readInt(100));
+        assertEquals(256, ctx.get(10));
+    }
+
+    @Test
+    void callPushesTheReturnAddressAndJumpsRelativeToTheNextInstruction() {
+        emptyStack();
+        load("6 r1, $20", "19 r1"); // the call is at 9..14
+
+        steps(2);
+
+        assertEquals(14 + 20, ctx.eip());
+        assertEquals(14, memory.readInt(252)); // the return address is the next instruction
+        assertEquals(252, ctx.get(10));
+    }
+
+    @Test
+    void callmTakesTheOffsetFromMemory() {
+        emptyStack();
+        memory.writeInt(100, 20);
+        load("6 r1, $100", "20 r1");
+
+        steps(2);
+
+        assertEquals(14 + 20, ctx.eip());
+        assertEquals(14, memory.readInt(252));
+    }
+
+    @Test
+    void retJumpsToTheAddressOnTheStack() {
+        emptyStack();
+        load("5 $200", "21");
+
+        steps(2);
+
+        assertEquals(200, ctx.eip());
+        assertEquals(256, ctx.get(10));
+    }
+
+    @Test
+    void aFullStackFaultsOnThePushAndNothingBelowItIsOverwritten() {
+        CpuContext small = contextWithSmallStack();
+        memory.writeInt(196, 0x1234); // just below the stack
+        load("5 $1", "5 $1", "5 $1", "5 $1", "5 $1", "5 $1", "5 $1",
+                "5 $1", "5 $1", "5 $1", "5 $1", "5 $1", "5 $1", "5 $1", "5 $1"); // 15 pushes
+
+        for (int i = 0; i < 14; i++) {
+            cpu.step(small);
+        }
+        assertEquals(200, small.get(10));
+        Fault fault = assertThrows(Fault.class, () -> cpu.step(small));
+
+        assertEquals("stack overflow", fault.getMessage());
+        assertEquals(200, small.get(10));
+        assertEquals(14 * 5, small.eip()); // at the push that failed
+        assertEquals(0x1234, memory.readInt(196));
+    }
+
+    @Test
+    void aCallOnAFullStackFaultsAndChangesNothing() {
+        CpuContext small = contextWithSmallStack();
+        small.set(10, 200); // full
+        load("6 r1, $5", "19 r1");
+
+        cpu.step(small);
+        assertThrows(Fault.class, () -> cpu.step(small));
+
+        assertEquals(200, small.get(10));
+        assertEquals(9, small.eip());
+    }
+
+    @Test
+    void popAndRetOnAnEmptyStackFaultAndChangeNothing() {
+        for (String instruction : List.of("35 r1", "36 r1", "21")) {
+            CpuContext empty = new CpuContext(7, new FlatAddressSpace(memory, 256));
+            empty.set(10, 256);
+            empty.set(1, 100);
+            load(instruction);
+
+            Fault fault = assertThrows(Fault.class, () -> cpu.step(empty), instruction);
+
+            assertEquals("stack underflow", fault.getMessage(), instruction);
+            assertEquals(256, empty.get(10), instruction);
+            assertEquals(100, empty.get(1), instruction);
+            assertEquals(0, empty.eip(), instruction);
+        }
+    }
+
+    @Test
+    void anSpOutsideTheStackIsRefusedByPushPopAndRet() {
+        for (int sp : new int[]{1000, -8}) {
+            for (String instruction : List.of("5 $1", "4 r1", "35 r1", "36 r1", "21", "19 r1")) {
+                CpuContext bad = new CpuContext(7, new FlatAddressSpace(memory, 256));
+                bad.set(10, sp);
+                load(instruction);
+
+                Fault fault = assertThrows(Fault.class, () -> cpu.step(bad), sp + " " + instruction);
+
+                assertEquals("invalid stack pointer " + sp, fault.getMessage());
+                assertEquals(sp, bad.get(10));
+            }
+        }
+    }
+
+    @Test
+    void popmToABadAddressFaultsAndLeavesSpAlone() {
+        emptyStack();
+        load("5 $42", "6 r1, $1000", "36 r1");
+
+        steps(2);
+        assertThrows(Fault.class, () -> cpu.step(ctx));
+
+        assertEquals(252, ctx.get(10));
+        assertEquals(14, ctx.eip()); // the popm
+    }
+
+    @Test
+    void poprIntoABadRegisterNumberFaultsAndLeavesSpAlone() {
+        memory.write(0, new byte[]{35, 11, 0, 0, 0}); // popr r11
+        memory.writeInt(252, 5);
+        ctx.set(10, 252);
+
+        Fault fault = assertThrows(Fault.class, () -> cpu.step(ctx));
+
+        assertEquals("invalid register r11", fault.getMessage());
+        assertEquals(252, ctx.get(10));
+    }
+
     @Test
     void memoryclearOutsideTheAddressSpaceOrWithANegativeLengthFaults() {
         load("6 r1, $250", "6 r2, $10", "33 r1, r2");

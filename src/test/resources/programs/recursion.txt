@@ -1,0 +1,19 @@
+;count(n): prints n, n-1, ... 1 while the calls go down, then 1, 2, ... n while they return.
+;Every call pushes a return address, and the value of r1 is saved on the stack around the call.
+;Byte offsets (needed for call and jump offsets) are in the comments.
+6	r1, $3		;@0   r1 = 3 (the argument)
+6	r2, $1		;@9   r2 = distance from the call below to count (offset 24 - 23)
+19	r2		;@18  call count
+27			;@23  exit
+;count:
+14	r1, $0		;@24  n == 0 ?
+6	r3, $43		;@33  distance from the je below to the ret at 90 (90 - 47)
+18	r3		;@42  if n == 0 jump to ret (the base case)
+11	r1		;@47  print n (going down)
+4	r1		;@52  save n on the stack
+2	r1, $-1		;@57  n = n - 1
+6	r4, $-56	;@66  distance from the call below back to count (24 - 80)
+19	r4		;@75  call count (recursion)
+35	r1		;@80  restore n
+11	r1		;@85  print n (coming back up)
+21			;@90  ret

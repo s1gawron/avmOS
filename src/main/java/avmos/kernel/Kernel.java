@@ -94,7 +94,8 @@ public final class Kernel {
         PhysicalMemory memory = new PhysicalMemory(config.memoryBytes());
         memory.write(0, program.code());
 
-        CpuContext context = new CpuContext(pid, new FlatAddressSpace(memory, layout.size()));
+        CpuContext context = new CpuContext(pid, new FlatAddressSpace(memory, layout.size()),
+                layout.stackBottom(), layout.stackTop());
         context.set(8, pid);
         context.set(9, layout.dataStart());
         context.set(Operand.SP, layout.stackTop());

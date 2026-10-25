@@ -1,0 +1,4 @@
+;A procedure that calls itself and never returns. Every call pushes a return address,
+;so the 4 KB stack (1024 words) fills up and the next call is a stack overflow.
+6	r2, $-14	;@0  distance back to the start (0 - 14)
+19	r2		;@9  call the start again (next instruction is at 14)
