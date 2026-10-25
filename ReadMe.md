@@ -9,6 +9,8 @@ I will start my research in [Gynvael's book "Zrozumieć programowanie"](https://
 
 The requirements for this project are either in this repository [Scotts_OriginalAssignment.md](Scotts_OriginalAssignment.md) as a backup or in Scott's TinyOS repository.
 
+What each step of the project teaches about how computers work is in [LearningNotes.md](LearningNotes.md).
+
 ### How to run this project?
 
 Requires JDK 25 and Maven.
